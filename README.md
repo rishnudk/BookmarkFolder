@@ -1,4 +1,4 @@
-# 🚀 BookmarkFolder — A Customizable New Tab Bookmark Dashboard (Chrome Extension)
+#  BookmarkFolder — A Customizable New Tab Bookmark Dashboard (Chrome Extension)
 
 BookmarkFolder is a fully customizable **New Tab replacement** for Chrome.  
 It lets you organize bookmarks into folders, drag & drop, rename, reorder, and manage them visually — all stored using Chrome Sync.
@@ -6,6 +6,11 @@ It lets you organize bookmarks into folders, drag & drop, rename, reorder, and m
 This project was built to replace cluttered bookmark bars with a clean and fast dashboard.
 
 ---
+
+## 📸 Screenshot
+
+![Screenshot](assets/Screenshot.png)
+
 
 ## ✨ Features
 
