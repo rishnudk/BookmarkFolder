@@ -1,4 +1,4 @@
-console.log("🚀 DEBUG MODE ENABLED — FULL LOGGING ACTIVE");
+
 
 // ---------------------------------------------------------
 // GLOBAL STATE
@@ -11,13 +11,11 @@ let dragSourceTile = null;
 let dragPlaceholder = null;
 
 // ---------------------------------------------------------
-// LOAD EVERYTHING (WITH LOGS)
+// LOAD EVERYTHING
 // ---------------------------------------------------------
 function loadAll() {
-  console.log("🔵 loadAll() called");
 
   chrome.storage.sync.get(["bookmarks", "folders", "openFolders"], res => {
-    console.log("📦 Storage Loaded:", res);
 
     const raw = res.bookmarks || [];
 
@@ -28,13 +26,8 @@ function loadAll() {
         id: b.id || crypto.randomUUID()
       }));
 
-    console.log("📘 Cleaned Bookmarks:", bookmarks);
-
     folders = res.folders || ["Default"];
     openFolders = res.openFolders || {};
-
-    console.log("📁 Folders:", folders);
-    console.log("📂 openFolders:", openFolders);
 
     folders.forEach(f => {
       if (openFolders[f] === undefined) {
@@ -55,7 +48,6 @@ loadAll();
 // SAVE ALL
 // ---------------------------------------------------------
 function saveAll() {
-  console.log("💾 saveAll() called");
   chrome.storage.sync.set({ bookmarks, folders, openFolders });
 }
 
@@ -71,19 +63,14 @@ function favicon(url) {
 }
 
 function groupBookmarks() {
-  console.log("🟣 groupBookmarks()");
-
   const map = {};
   folders.forEach(f => (map[f] = []));
 
   bookmarks.forEach(b => {
-    if (!b) console.warn("⚠ Undefined bookmark found:", b);
     const f = b.folder || "Default";
     if (!map[f]) map[f] = [];
     map[f].push(b);
   });
-
-  console.log("📚 Grouped bookmarks:", map);
   return map;
 }
 
@@ -101,7 +88,6 @@ document.addEventListener("click", e => {
 // RENDER UI WITH LOGS
 // ---------------------------------------------------------
 function renderFolders() {
-  console.log("🟡 renderFolders()");
 
   const container = document.getElementById("bookmarkGrid");
   container.innerHTML = "";
@@ -109,7 +95,6 @@ function renderFolders() {
   const grouped = groupBookmarks();
 
   Object.keys(grouped).forEach(folder => {
-    console.log("📁 Rendering folder:", folder);
 
     const items = grouped[folder];
 
@@ -196,7 +181,6 @@ function renderFolders() {
       const draggedBookmark = bookmarks.find(b => b.id === dragSourceTile.dataset.id);
       if (draggedBookmark) {
         draggedBookmark.folder = folder;
-        console.log("📁 Moved to folder via header:", folder);
       }
 
       saveAll();
@@ -204,10 +188,7 @@ function renderFolders() {
     });
 
     // TILES
-    console.log("🔷 Rendering items:", items);
-
     items.forEach(b => {
-      console.log("🔷 Tile bookmark:", b);
 
       const tile = document.createElement("div");
       tile.className = "tile";
@@ -259,8 +240,7 @@ function renderFolders() {
         renderFolders();
       });
 
-      // Add DRAG LISTENERS WITH LOGS
-      console.log("🛠 Adding listeners for tile:", b.id);
+      // Add DRAG LISTENERS
 
       tile.addEventListener("dragstart", handleDragStart);
       tile.addEventListener("dragover", handleDragOver);
@@ -272,15 +252,12 @@ function renderFolders() {
 
     container.appendChild(grid);
   });
-
-  console.log("🎯 renderFolders COMPLETED");
 }
 
 // ---------------------------------------------------------
 // DRAG + DROP (FIXED VERSION)
 // ---------------------------------------------------------
 function handleDragStart(e) {
-  console.log("🔥 DRAG START:", this.dataset.id);
 
   dragSourceTile = this;
 
@@ -294,7 +271,6 @@ function handleDragStart(e) {
 
 function handleDragOver(e) {
   e.preventDefault();
-  console.log("➡ DRAG OVER tile:", this.dataset.id);
 
   const grid = this.parentElement;
   if (!dragPlaceholder) return;
@@ -305,18 +281,14 @@ function handleDragOver(e) {
   // Insert placeholder instead of the real tile
   if (isAfter) {
     grid.insertBefore(dragPlaceholder, this.nextSibling);
-    console.log("↘ PLACEHOLDER after:", this.dataset.id);
   } else {
     grid.insertBefore(dragPlaceholder, this);
-    console.log("↖ PLACEHOLDER before:", this.dataset.id);
   }
 }
 
 
 function handleDrop(e) {
   e.preventDefault();
-  console.log("💧 DROP EVENT FIRED ON TILE!");
-  console.log("💧 DROP on:", this.dataset.id);
 
   if (!dragSourceTile) return;
 
@@ -340,21 +312,16 @@ function handleDrop(e) {
 
   // Reorder bookmarks based on DOM order
   const ids = [...grid.querySelectorAll(".tile")].map(el => el.dataset.id);
-  console.log("📌 New DOM order:", ids);
 
   const folderItems = bookmarks.filter(b => b.folder === folder);
-  console.log("📁 Folder items BEFORE reorder:", folderItems);
 
   const reordered = ids
     .map(id => bookmarks.find(b => b.id === id))
     .filter(Boolean);
 
-  console.log("🔄 Reordered items:", reordered);
-
   const others = bookmarks.filter(b => b.folder !== folder);
 
   bookmarks = [...others, ...reordered];
-  console.log("💾 Bookmarks AFTER reorder:", bookmarks);
 
   saveAll();
   renderFolders();
@@ -363,7 +330,6 @@ function handleDrop(e) {
 // NEW: Handle dragover on grid (allows drop on empty space)
 function handleGridDragOver(e) {
   e.preventDefault();
-  console.log("🟢 GRID DRAG OVER:", this.dataset.folder);
 
   if (!dragPlaceholder || !dragSourceTile) return;
 
@@ -371,15 +337,12 @@ function handleGridDragOver(e) {
   const tiles = [...this.querySelectorAll(".tile:not(.dragging)")];
   if (tiles.length === 0) {
     this.appendChild(dragPlaceholder);
-    console.log("📍 PLACEHOLDER appended to empty grid");
   }
 }
 
 // NEW: Handle drop on grid (allows drop on empty space)
 function handleGridDrop(e) {
   e.preventDefault();
-  console.log("💧 DROP EVENT FIRED ON GRID!");
-  console.log("💧 DROP on folder:", this.dataset.folder);
 
   if (!dragSourceTile) return;
 
@@ -401,12 +364,10 @@ function handleGridDrop(e) {
   const draggedBookmark = bookmarks.find(b => b.id === dragSourceTile.dataset.id);
   if (draggedBookmark) {
     draggedBookmark.folder = folder;
-    console.log("📁 Moved bookmark to folder:", folder);
   }
 
   // Reorder bookmarks based on DOM order
   const ids = [...grid.querySelectorAll(".tile")].map(el => el.dataset.id);
-  console.log("📌 New DOM order:", ids);
 
   const folderItems = bookmarks.filter(b => b.folder === folder);
   const reordered = ids
@@ -416,15 +377,12 @@ function handleGridDrop(e) {
   const others = bookmarks.filter(b => b.folder !== folder);
   bookmarks = [...others, ...reordered];
 
-  console.log("💾 Bookmarks AFTER reorder:", bookmarks);
-
   saveAll();
   renderFolders();
 }
 
 
 function handleDragEnd(e) {
-  console.log("🛑 DRAG END:", this.dataset.id);
 
   this.classList.remove("dragging");
 
@@ -441,7 +399,6 @@ function handleDragEnd(e) {
 // POPULATE FOLDER SELECT
 // ---------------------------------------------------------
 function populateFolderSelect(selected = "Default") {
-  console.log("📋 populateFolderSelect() called");
   
   const select = document.getElementById("folderSelect");
   if (!select) return;
@@ -456,7 +413,6 @@ function populateFolderSelect(selected = "Default") {
   });
   
   select.value = selected;
-  console.log("✅ Folder select populated with:", folders);
 }
 
 // ---------------------------------------------------------
@@ -537,7 +493,6 @@ function saveBookmark() {
     if (!folders.includes(newFolderName)) {
       folders.push(newFolderName);
       openFolders[newFolderName] = true;
-      console.log("📁 Created new folder:", newFolderName);
     }
     folder = newFolderName;
   }
@@ -604,7 +559,6 @@ function renameFolder(oldName) {
 // GOOGLE APPS
 // ---------------------------------------------------------
 function renderGoogleApps() {
-  console.log("🔵 renderGoogleApps()");
   
   const div = document.getElementById("googleApps");
   if (!div) return;
