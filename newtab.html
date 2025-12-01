@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DK New Tab</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="container">
+
+    <!-- LEFT SECTION -->
+    <div class="left">
+      <div class="top-bar">
+        <h1>Bookmarks</h1>
+        <button id="openModalBtn">+ Add</button>
+      </div>
+
+      <!-- Folders + bookmarks will be rendered here -->
+      <div id="bookmarkGrid"></div>
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="sidebar">
+      <h2>Google Apps</h2>
+      <div id="googleApps" class="apps"></div>
+    </div>
+
+  </div> <!-- END CONTAINER -->
+
+
+
+  <!-- MODAL WRAPPER -->
+<div id="modal" class="modal hidden">
+  <div class="modal-content">
+
+    <h2 id="modalTitle">Add Bookmark</h2>
+
+    <input id="inputName" type="text" placeholder="Bookmark Name">
+    <input id="inputURL" type="url" placeholder="Bookmark URL">
+
+    <label>Folder (optional):</label>
+    <select id="folderSelect"></select>
+
+    <button id="addFolderBtn" class="small-btn">+ Add Folder</button>
+
+    <input id="newFolderInput" class="hidden" type="text" placeholder="Folder Name">
+
+    <div class="modal-actions">
+      <button id="cancelBtn" class="cancel">Cancel</button>
+      <button id="saveBtn" class="save">Save</button>
+    </div>
+
+  </div>
+</div>
+
+
+
+  <script src="script.js"></script>
+</body>
+
+</html>
