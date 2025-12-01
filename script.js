@@ -1,4 +1,4 @@
-console.log("🚀 CLEAN STABLE VERSION LOADED");
+console.log("🚀 DEBUG MODE ENABLED — FULL LOGGING ACTIVE");
 
 // ---------------------------------------------------------
 // GLOBAL STATE
@@ -6,25 +6,43 @@ console.log("🚀 CLEAN STABLE VERSION LOADED");
 let bookmarks = [];
 let folders = ["Default"];
 let editingIndex = null;
-let openFolders = {}; // remembers which folders are expanded
+let openFolders = {};
+let dragSourceTile = null;
+let dragPlaceholder = null;
 
 // ---------------------------------------------------------
-// LOAD EVERYTHING
+// LOAD EVERYTHING (WITH LOGS)
 // ---------------------------------------------------------
 function loadAll() {
+  console.log("🔵 loadAll() called");
+
   chrome.storage.sync.get(["bookmarks", "folders", "openFolders"], res => {
-    bookmarks = res.bookmarks || [];
+    console.log("📦 Storage Loaded:", res);
+
+    const raw = res.bookmarks || [];
+
+    bookmarks = raw
+      .filter(b => b && typeof b === "object")
+      .map(b => ({
+        ...b,
+        id: b.id || crypto.randomUUID()
+      }));
+
+    console.log("📘 Cleaned Bookmarks:", bookmarks);
+
     folders = res.folders || ["Default"];
     openFolders = res.openFolders || {};
 
-    // Ensure all folders have a saved state
+    console.log("📁 Folders:", folders);
+    console.log("📂 openFolders:", openFolders);
+
     folders.forEach(f => {
       if (openFolders[f] === undefined) {
-        openFolders[f] = (f === "Default"); // Default is expanded by default
+        openFolders[f] = f === "Default";
       }
     });
 
-    chrome.storage.sync.set({ openFolders });
+    chrome.storage.sync.set({ bookmarks, folders, openFolders });
 
     renderFolders();
     populateFolderSelect();
@@ -33,7 +51,11 @@ function loadAll() {
 }
 loadAll();
 
+// ---------------------------------------------------------
+// SAVE ALL
+// ---------------------------------------------------------
 function saveAll() {
+  console.log("💾 saveAll() called");
   chrome.storage.sync.set({ bookmarks, folders, openFolders });
 }
 
@@ -49,13 +71,19 @@ function favicon(url) {
 }
 
 function groupBookmarks() {
+  console.log("🟣 groupBookmarks()");
+
   const map = {};
   folders.forEach(f => (map[f] = []));
+
   bookmarks.forEach(b => {
+    if (!b) console.warn("⚠ Undefined bookmark found:", b);
     const f = b.folder || "Default";
     if (!map[f]) map[f] = [];
     map[f].push(b);
   });
+
+  console.log("📚 Grouped bookmarks:", map);
   return map;
 }
 
@@ -70,27 +98,30 @@ document.addEventListener("click", e => {
 });
 
 // ---------------------------------------------------------
-// RENDER FOLDERS + BOOKMARKS
+// RENDER UI WITH LOGS
 // ---------------------------------------------------------
 function renderFolders() {
+  console.log("🟡 renderFolders()");
+
   const container = document.getElementById("bookmarkGrid");
   container.innerHTML = "";
 
   const grouped = groupBookmarks();
 
   Object.keys(grouped).forEach(folder => {
+    console.log("📁 Rendering folder:", folder);
+
     const items = grouped[folder];
 
-    // --- Folder Header ---
+    // FOLDER HEADER
     const header = document.createElement("div");
     header.className = "folder-header";
+
     header.innerHTML = `
       <svg class="folder-arrow" viewBox="0 0 24 24">
         <path fill="white" d="M8 5l8 7-8 7z"></path>
       </svg>
-
       <span class="folder-name">${folder}</span>
-
       <button class="delete-folder-btn" data-folder="${folder}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path d="M3 6h18" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
@@ -101,31 +132,7 @@ function renderFolders() {
         </svg>
       </button>
     `;
-
     container.appendChild(header);
-
-    // Draggable folder drop-zone
-    header.addEventListener("dragover", e => {
-      e.preventDefault();
-      header.classList.add("folder-drop-target");
-    });
-
-    header.addEventListener("dragleave", () => {
-      header.classList.remove("folder-drop-target");
-    });
-
-    header.addEventListener("drop", e => {
-      e.preventDefault();
-      header.classList.remove("folder-drop-target");
-      if (!dragSourceTile) return;
-
-      const idx = parseInt(dragSourceTile.dataset.index);
-      const bm = bookmarks[idx];
-      bm.folder = folder;
-
-      saveAll();
-      renderFolders();
-    });
 
     // DELETE folder
     header.querySelector(".delete-folder-btn").addEventListener("click", e => {
@@ -144,12 +151,11 @@ function renderFolders() {
       renameFolder(folder);
     });
 
-    // --- Folder Grid (actual bookmarks) ---
+    // GRID
     const grid = document.createElement("div");
     grid.className = "folder-grid";
     grid.dataset.folder = folder;
 
-    // Apply saved open/closed state
     if (!openFolders[folder]) {
       grid.classList.add("collapsed");
       header.querySelector(".folder-arrow").style.transform = "rotate(-90deg)";
@@ -168,12 +174,45 @@ function renderFolders() {
       chrome.storage.sync.set({ openFolders });
     });
 
-    // --- Bookmark Tiles ---
+    // ADD GRID-LEVEL DRAG LISTENERS (CRITICAL FIX)
+    grid.addEventListener("dragover", handleGridDragOver);
+    grid.addEventListener("drop", handleGridDrop);
+
+    // Draggable folder header drop-zone
+    header.addEventListener("dragover", e => {
+      e.preventDefault();
+      header.classList.add("folder-drop-target");
+    });
+
+    header.addEventListener("dragleave", () => {
+      header.classList.remove("folder-drop-target");
+    });
+
+    header.addEventListener("drop", e => {
+      e.preventDefault();
+      header.classList.remove("folder-drop-target");
+      if (!dragSourceTile) return;
+
+      const draggedBookmark = bookmarks.find(b => b.id === dragSourceTile.dataset.id);
+      if (draggedBookmark) {
+        draggedBookmark.folder = folder;
+        console.log("📁 Moved to folder via header:", folder);
+      }
+
+      saveAll();
+      renderFolders();
+    });
+
+    // TILES
+    console.log("🔷 Rendering items:", items);
+
     items.forEach(b => {
+      console.log("🔷 Tile bookmark:", b);
+
       const tile = document.createElement("div");
       tile.className = "tile";
       tile.draggable = true;
-      tile.dataset.index = bookmarks.indexOf(b);
+      tile.dataset.id = b.id;
 
       tile.innerHTML = `
         <div class="icon-wrap">
@@ -220,7 +259,9 @@ function renderFolders() {
         renderFolders();
       });
 
-      // Drag handlers
+      // Add DRAG LISTENERS WITH LOGS
+      console.log("🛠 Adding listeners for tile:", b.id);
+
       tile.addEventListener("dragstart", handleDragStart);
       tile.addEventListener("dragover", handleDragOver);
       tile.addEventListener("drop", handleDrop);
@@ -231,49 +272,191 @@ function renderFolders() {
 
     container.appendChild(grid);
   });
+
+  console.log("🎯 renderFolders COMPLETED");
 }
 
 // ---------------------------------------------------------
-// DRAG & DROP LOGIC
+// DRAG + DROP (FIXED VERSION)
 // ---------------------------------------------------------
-let dragSourceTile = null;
+function handleDragStart(e) {
+  console.log("🔥 DRAG START:", this.dataset.id);
 
-function handleDragStart() {
   dragSourceTile = this;
+
+  dragPlaceholder = document.createElement("div");
+  dragPlaceholder.className = "tile-placeholder";
+  dragPlaceholder.style.height = `${this.offsetHeight}px`;
+
   this.classList.add("dragging");
 }
 
+
 function handleDragOver(e) {
   e.preventDefault();
+  console.log("➡ DRAG OVER tile:", this.dataset.id);
+
   const grid = this.parentElement;
-  if (this === dragSourceTile) return;
+  if (!dragPlaceholder) return;
 
-  const tiles = [...grid.children];
-  const a = tiles.indexOf(dragSourceTile);
-  const b = tiles.indexOf(this);
+  const rect = this.getBoundingClientRect();
+  const isAfter = e.clientY > rect.top + rect.height / 2;
 
-  if (a < b) grid.insertBefore(dragSourceTile, this.nextSibling);
-  else grid.insertBefore(dragSourceTile, this);
+  // Insert placeholder instead of the real tile
+  if (isAfter) {
+    grid.insertBefore(dragPlaceholder, this.nextSibling);
+    console.log("↘ PLACEHOLDER after:", this.dataset.id);
+  } else {
+    grid.insertBefore(dragPlaceholder, this);
+    console.log("↖ PLACEHOLDER before:", this.dataset.id);
+  }
 }
 
-function handleDrop() {
-  const folder = this.parentElement.dataset.folder;
-  const tiles = [...this.parentElement.children];
-  const reordered = tiles.map(t =>
-    bookmarks[parseInt(t.dataset.index)]
-  );
 
-  bookmarks = [
-    ...bookmarks.filter(b => b.folder !== folder),
-    ...reordered
-  ];
+function handleDrop(e) {
+  e.preventDefault();
+  console.log("💧 DROP EVENT FIRED ON TILE!");
+  console.log("💧 DROP on:", this.dataset.id);
+
+  if (!dragSourceTile) return;
+
+  const grid = this.parentElement;
+  const folder = grid.dataset.folder;
+
+  // Insert dragged tile where placeholder is
+  if (dragPlaceholder && dragPlaceholder.parentElement) {
+    grid.insertBefore(dragSourceTile, dragPlaceholder);
+  }
+
+  // Remove placeholder
+  dragPlaceholder?.remove();
+  dragPlaceholder = null;
+
+  // Update bookmark folder if moved to different folder
+  const draggedBookmark = bookmarks.find(b => b.id === dragSourceTile.dataset.id);
+  if (draggedBookmark) {
+    draggedBookmark.folder = folder;
+  }
+
+  // Reorder bookmarks based on DOM order
+  const ids = [...grid.querySelectorAll(".tile")].map(el => el.dataset.id);
+  console.log("📌 New DOM order:", ids);
+
+  const folderItems = bookmarks.filter(b => b.folder === folder);
+  console.log("📁 Folder items BEFORE reorder:", folderItems);
+
+  const reordered = ids
+    .map(id => bookmarks.find(b => b.id === id))
+    .filter(Boolean);
+
+  console.log("🔄 Reordered items:", reordered);
+
+  const others = bookmarks.filter(b => b.folder !== folder);
+
+  bookmarks = [...others, ...reordered];
+  console.log("💾 Bookmarks AFTER reorder:", bookmarks);
 
   saveAll();
   renderFolders();
 }
 
-function handleDragEnd() {
+// NEW: Handle dragover on grid (allows drop on empty space)
+function handleGridDragOver(e) {
+  e.preventDefault();
+  console.log("🟢 GRID DRAG OVER:", this.dataset.folder);
+
+  if (!dragPlaceholder || !dragSourceTile) return;
+
+  // If dragging over empty space, append placeholder to end
+  const tiles = [...this.querySelectorAll(".tile:not(.dragging)")];
+  if (tiles.length === 0) {
+    this.appendChild(dragPlaceholder);
+    console.log("📍 PLACEHOLDER appended to empty grid");
+  }
+}
+
+// NEW: Handle drop on grid (allows drop on empty space)
+function handleGridDrop(e) {
+  e.preventDefault();
+  console.log("💧 DROP EVENT FIRED ON GRID!");
+  console.log("💧 DROP on folder:", this.dataset.folder);
+
+  if (!dragSourceTile) return;
+
+  const grid = this;
+  const folder = grid.dataset.folder;
+
+  // Insert dragged tile where placeholder is, or at the end
+  if (dragPlaceholder && dragPlaceholder.parentElement === grid) {
+    grid.insertBefore(dragSourceTile, dragPlaceholder);
+  } else {
+    grid.appendChild(dragSourceTile);
+  }
+
+  // Remove placeholder
+  dragPlaceholder?.remove();
+  dragPlaceholder = null;
+
+  // Update bookmark folder
+  const draggedBookmark = bookmarks.find(b => b.id === dragSourceTile.dataset.id);
+  if (draggedBookmark) {
+    draggedBookmark.folder = folder;
+    console.log("📁 Moved bookmark to folder:", folder);
+  }
+
+  // Reorder bookmarks based on DOM order
+  const ids = [...grid.querySelectorAll(".tile")].map(el => el.dataset.id);
+  console.log("📌 New DOM order:", ids);
+
+  const folderItems = bookmarks.filter(b => b.folder === folder);
+  const reordered = ids
+    .map(id => bookmarks.find(b => b.id === id))
+    .filter(Boolean);
+
+  const others = bookmarks.filter(b => b.folder !== folder);
+  bookmarks = [...others, ...reordered];
+
+  console.log("💾 Bookmarks AFTER reorder:", bookmarks);
+
+  saveAll();
+  renderFolders();
+}
+
+
+function handleDragEnd(e) {
+  console.log("🛑 DRAG END:", this.dataset.id);
+
   this.classList.remove("dragging");
+
+  if (dragPlaceholder) {
+    dragPlaceholder.remove();
+    dragPlaceholder = null;
+  }
+
+  dragSourceTile = null;
+}
+
+
+// ---------------------------------------------------------
+// POPULATE FOLDER SELECT
+// ---------------------------------------------------------
+function populateFolderSelect(selected = "Default") {
+  console.log("📋 populateFolderSelect() called");
+  
+  const select = document.getElementById("folderSelect");
+  if (!select) return;
+  
+  select.innerHTML = "";
+  
+  folders.forEach(folder => {
+    const option = document.createElement("option");
+    option.value = folder;
+    option.textContent = folder;
+    select.appendChild(option);
+  });
+  
+  select.value = selected;
+  console.log("✅ Folder select populated with:", folders);
 }
 
 // ---------------------------------------------------------
@@ -302,17 +485,6 @@ function openModal(name, url, folder) {
   newFolderInput.value = "";
   populateFolderSelect(folder);
   modal.classList.remove("hidden");
-}
-
-function populateFolderSelect(selected = "Default") {
-  folderSelect.innerHTML = "";
-  folders.forEach(f => {
-    const opt = document.createElement("option");
-    opt.value = f;
-    opt.textContent = f;
-    folderSelect.appendChild(opt);
-  });
-  folderSelect.value = selected;
 }
 
 addFolderBtn.addEventListener("click", () => {
@@ -353,11 +525,30 @@ document.getElementById("saveBtn").addEventListener("click", saveBookmark);
 function saveBookmark() {
   const name = nameInput.value.trim();
   const url = urlInput.value.trim();
-  const folder = folderSelect.value;
+  
+  // Check if user typed a new folder name
+  const newFolderName = newFolderInput.value.trim();
+  let folder = folderSelect.value;
 
   if (!name || !url) return;
 
-  const entry = { name, url, folder, icon: favicon(url) };
+  // If new folder name exists, create it and use it
+  if (newFolderName && !newFolderInput.classList.contains("hidden")) {
+    if (!folders.includes(newFolderName)) {
+      folders.push(newFolderName);
+      openFolders[newFolderName] = true;
+      console.log("📁 Created new folder:", newFolderName);
+    }
+    folder = newFolderName;
+  }
+
+  const entry = { 
+    name, 
+    url, 
+    folder, 
+    icon: favicon(url),
+    id: editingIndex !== null ? bookmarks[editingIndex].id : crypto.randomUUID()
+  };
 
   if (editingIndex === null) bookmarks.push(entry);
   else bookmarks[editingIndex] = entry;
@@ -365,6 +556,10 @@ function saveBookmark() {
   saveAll();
   renderFolders();
   modal.classList.add("hidden");
+  
+  // Reset new folder input
+  newFolderInput.value = "";
+  newFolderInput.classList.add("hidden");
 }
 
 // ---------------------------------------------------------
@@ -406,14 +601,18 @@ function renameFolder(oldName) {
 }
 
 // ---------------------------------------------------------
-// GOOGLE APPS LIST
+// GOOGLE APPS
 // ---------------------------------------------------------
 function renderGoogleApps() {
+  console.log("🔵 renderGoogleApps()");
+  
   const div = document.getElementById("googleApps");
+  if (!div) return;
+  
   div.innerHTML = "";
 
   const apps = [
-    { name: "Gmail", url: "https://mail.google.com" },
+    { name: "Gmail", url: "https://mail.google.com", icon: "https://www.google.com/s2/favicons?sz=64&domain=gmail.com" },
     { name: "Drive", url: "https://drive.google.com" },
     { name: "YouTube", url: "https://youtube.com" },
     { name: "Meet", url: "https://meet.google.com" },
@@ -425,7 +624,8 @@ function renderGoogleApps() {
   apps.forEach(app => {
     const item = document.createElement("div");
     item.className = "app-item";
-    item.innerHTML = `<img src="${favicon(app.url)}" width="20"><span>${app.name}</span>`;
+    const iconUrl = app.icon || favicon(app.url);
+    item.innerHTML = `<img src="${iconUrl}" width="20"><span>${app.name}</span>`;
     item.addEventListener("click", () => window.location.href = app.url);
     div.appendChild(item);
   });
