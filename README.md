@@ -10,7 +10,7 @@ This project was built to replace cluttered bookmark bars with a clean and fast 
 ## 📸 Screenshot / Video
 
 ![Screenshot](assets/Screenshot.png)
-![Video](assets/Video.gif)
+![Video](assets/Video.mp4)
 
 
 ## ✨ Features
